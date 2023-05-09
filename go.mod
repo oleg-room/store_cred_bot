@@ -4,7 +4,9 @@ go 1.20
 
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
+	github.com/google/uuid v1.3.0
 	github.com/leesper/couchdb-golang v1.2.1
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/samber/lo v1.38.1
 	github.com/sirupsen/logrus v1.9.0
 )

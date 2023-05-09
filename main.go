@@ -4,6 +4,7 @@ import (
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/sirupsen/logrus"
 	"os"
+	"tg_bot/db"
 )
 
 const (
@@ -12,16 +13,16 @@ const (
 )
 
 func main() {
-	// connection to couchDB
-	//couch := &db.Couch{}
-	//err := couch.InitConnection(databaseURL, "admin", "admin")
-	//if err != nil {
-	//	logrus.WithError(err).Fatalf("cannot init connection with couch DMS on %s", databaseURL)
-	//}
-	//err = couch.CreateDatabase(couchDBName)
-	//if err != nil {
-	//	logrus.WithError(err).Fatalf("cannot create %s database in couch DMS on %s", couchDBName, databaseURL)
-	//}
+	//connection to couchDB
+	couch := &db.Couch{}
+	err := couch.InitConnection(databaseURL, "admin", "pass")
+	if err != nil {
+		logrus.WithError(err).Fatalf("cannot init connection with couch DMS on %s", databaseURL)
+	}
+	err = couch.CreateDatabase(couchDBName)
+	if err != nil {
+		logrus.WithError(err).Fatalf("cannot create %s database in couch DMS on %s", couchDBName, databaseURL)
+	}
 
 	bot, err := tg.NewBotAPI(os.Getenv("TG_BOT_TOKEN"))
 	if err != nil {
@@ -29,8 +30,8 @@ func main() {
 	}
 
 	credStore := CredStore{
-		//Couch: couch,
-		Bot: bot,
+		Couch: couch,
+		Bot:   bot,
 	}
 
 	credStore.MakeUpdatesChan()
@@ -60,13 +61,5 @@ func main() {
 				logrus.WithError(err).Error("service not deleted")
 			}
 		}
-	}
-}
-
-func (cred *CredStore) Send(chatID int64, text string, err error) {
-	if err != nil {
-		_, _ = cred.Bot.Send(tg.NewMessage(chatID, err.Error()))
-	} else {
-		_, _ = cred.Bot.Send(tg.NewMessage(chatID, text))
 	}
 }

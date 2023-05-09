@@ -6,22 +6,25 @@ import (
 )
 
 var (
-	ErrNoRecognizedCommand = errors.New("not valid command")
-	ErrBadParams           = errors.New("bad parameters")
-	ErrMsgNotACommand      = errors.New("msg must be only command, starting with '/'")
-	ErrEmptyMsg            = errors.New("empty message")
-	ErrDatabaseQuery       = errors.New("database error")
+	ErrNoRecognizedCommand  = errors.New("not valid command")
+	ErrServiceNotExistsInDB = errors.New("service not exists in databse")
+	ErrMsgNotACommand       = errors.New("msg must be only command, starting with '/'")
+	ErrEmptyMsg             = errors.New("empty message")
 )
 
+// User represents the user, that can hold many creds
 type User struct {
-	Username string    `json:"username"`
-	Services []Service `json:"services"`
+	ID       string    `json:"_id" structs:"_id" mapstructure:"_id"`
+	Rev      string    `json:"_rev" structs:"_rev" mapstructure:"_rev,omitempty"`
+	Username string    `json:"username" structs:"username" mapstructure:"username"`
+	Services []Service `json:"services" structs:"services" mapstructure:"services"`
 }
 
+// Service contains creds, including service's name itself
 type Service struct {
-	Name     string `json:"name"`
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Name     string `json:"name" structs:"name" mapstructure:"name"`
+	Login    string `json:"login" structs:"login" mapstructure:"login"`
+	Password string `json:"password" structs:"password" mapstructure:"password"`
 }
 
 func (s Service) String() string {

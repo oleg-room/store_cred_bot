@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/samber/lo"
@@ -16,8 +17,16 @@ type CredStore struct {
 	Updates tg.UpdatesChannel
 }
 
+var keyboardButtons = tg.NewReplyKeyboard(
+	tg.NewKeyboardButtonRow(
+		tg.NewKeyboardButton("override current creds"),
+		tg.NewKeyboardButton("decline operation"),
+	),
+)
+
 var ValidCommands = []string{"get", "set", "del"}
 
+// ValidateUpdate make some pre-handling errors check. In case bot expect the command, but it isn't...
 func (c *CredStore) ValidateUpdate(update tg.Update) error {
 	if update.CallbackQuery != nil {
 		callback := tg.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data)
@@ -50,6 +59,8 @@ func (c *CredStore) HandleSetCommand(chatID int64) error {
 	}
 	i := 0
 	service := models.Service{}
+
+	var user *tg.User
 FinishPolling:
 	for u := range c.Updates {
 		if u.Message.IsCommand() {
@@ -59,14 +70,28 @@ FinishPolling:
 		switch i {
 		case 0:
 			service.Name = u.Message.Text
+			user = u.Message.From
 
-			//checking if such service already exists in database
-			serviceToUpdate, _ := c.Couch.GetService(service.Name)
+			// check if such service already exists in database under the user
+			serviceToUpdate, _ := c.Couch.GetService(service.Name, user.UserName)
 			if serviceToUpdate != nil {
-				response := fmt.Sprintf("creds under service %s already exists. To update creds you should first do '/del' command, then '/set'", serviceToUpdate.Name)
+				response := fmt.Sprintf("creds under service %s already exists. login: %s pass: ******. Select what bot should do", serviceToUpdate.Name, serviceToUpdate.Login)
+				msg := tg.NewMessage(u.Message.Chat.ID, response)
+				msg.ReplyMarkup = keyboardButtons
+				_, _ = c.Bot.Send(msg)
 
-				_, _ = c.Bot.Send(tg.NewMessage(chatID, response))
-				return nil
+				upd := <-c.Updates
+				switch upd.Message.Text {
+				case "override current creds":
+					msg.Text = "continuing setting creds"
+					msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
+					_, _ = c.Bot.Send(msg)
+				case "decline operation":
+					msg.Text = "aborting..."
+					msg.ReplyMarkup = tg.NewRemoveKeyboard(true)
+					_, _ = c.Bot.Send(msg)
+					return nil
+				}
 			}
 			if _, err := c.Bot.Send(tg.NewMessage(chatID, "enter login")); err != nil {
 				logrus.WithError(err).Error()
@@ -84,8 +109,7 @@ FinishPolling:
 		}
 		i++
 	}
-	// saving data to database
-	err := c.Couch.SaveServiceCreds(service)
+	err := c.Couch.SaveServiceCreds(service, user.UserName)
 	if err != nil {
 		_, _ = c.Bot.Send(tg.NewMessage(chatID, "creds not saved"))
 		return fmt.Errorf("creds not saved. %w", err)
@@ -99,20 +123,25 @@ func (c *CredStore) HandleGetCommand(chatID int64) error {
 		logrus.WithError(err).Error()
 		return err
 	}
-	for u := range c.Updates {
-		service, err := c.Couch.GetService(u.Message.Text)
-		if err != nil {
-			return fmt.Errorf("cannot handle get command. %w", err)
-		}
-		msg, _ := c.Bot.Send(tg.NewMessage(chatID, service.String()))
-
-		// deleting msg with creds after a while
-		delMsgConf := tg.NewDeleteMessage(u.Message.Chat.ID, msg.MessageID)
-		go func() {
-			time.Sleep(time.Second * 30)
-			_, _ = c.Bot.DeleteMessage(delMsgConf)
-		}()
+	u := <-c.Updates
+	service, err := c.Couch.GetService(u.Message.Text, u.Message.From.UserName)
+	if err != nil {
+		_, _ = c.Bot.Send(tg.NewMessage(chatID, "creds not retrieved"))
+		return fmt.Errorf("cannot handle get command. %w", err)
 	}
+	if service == nil {
+		response := fmt.Sprintf("creds under service %s not found", u.Message.Text)
+		msg := tg.NewMessage(u.Message.Chat.ID, response)
+		_, _ = c.Bot.Send(msg)
+		return nil
+	}
+	msg, _ := c.Bot.Send(tg.NewMessage(chatID, service.String()))
+	// deleting msg with creds after a while
+	delMsgConf := tg.NewDeleteMessage(u.Message.Chat.ID, msg.MessageID)
+	go func() {
+		time.Sleep(time.Second * 30)
+		_, _ = c.Bot.DeleteMessage(delMsgConf)
+	}()
 	return nil
 }
 
@@ -121,24 +150,32 @@ func (c *CredStore) HandleDeleteCommand(chatID int64) error {
 		logrus.WithError(err).Error()
 		return err
 	}
-	var serviceName string
-	for u := range c.Updates {
-		serviceName = u.Message.Text
-		// if there is not such service in database, then service not deleted (false)
-		ok, err := c.Couch.DeleteService(serviceName)
-		if err != nil {
-			return fmt.Errorf("cannot handle delete command %w", err)
-		}
-		if !ok {
-			_, _ = c.Bot.Send(tg.NewMessage(chatID, "creds for this service not exist in database, so nothing to delete"))
-			return nil
-		}
+	u := <-c.Updates
+	// if there is not such service in database, then service not deleted (false)
+	service, err := c.Couch.GetService(u.Message.Text, u.Message.From.UserName)
+	if err != nil {
+		return err
 	}
-	response := fmt.Sprintf("creds for %s deleted", serviceName)
-	_, _ = c.Bot.Send(tg.NewMessage(chatID, response))
+	if service == nil {
+		response := fmt.Sprintf("No creds for %s service, so nothing to delete", u.Message.Text)
+		_, _ = c.Bot.Send(tg.NewMessage(chatID, response))
+		return nil
+	}
+	ok, err := c.Couch.DeleteService(u.Message.Text, u.Message.From.UserName)
+	if errors.Is(err, models.ErrServiceNotExistsInDB) {
+		_, _ = c.Bot.Send(tg.NewMessage(chatID, "no such service in database, so cannot delete"))
+	} else if err != nil {
+		_, _ = c.Bot.Send(tg.NewMessage(chatID, "creds not deleted due to unknown reason"))
+		return err
+	}
+	if ok {
+		response := fmt.Sprintf("creds for %s deleted", u.Message.Text)
+		_, _ = c.Bot.Send(tg.NewMessage(chatID, response))
+	}
 	return nil
 }
 
+// MakeUpdatesChan configure updates settings
 func (c *CredStore) MakeUpdatesChan() {
 	updConfig := tg.NewUpdate(0)
 	updConfig.Timeout = 30
