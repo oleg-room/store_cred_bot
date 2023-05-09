@@ -15,7 +15,7 @@ const (
 func main() {
 	//connection to couchDB
 	couch := &db.Couch{}
-	err := couch.InitConnection(databaseURL, "admin", "pass")
+	err := couch.InitConnection(databaseURL, os.Getenv("COUCHDB_USER"), os.Getenv("COUCHDB_PASSWORD"))
 	if err != nil {
 		logrus.WithError(err).Fatalf("cannot init connection with couch DMS on %s", databaseURL)
 	}
