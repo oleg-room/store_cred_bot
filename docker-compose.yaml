@@ -12,8 +12,6 @@ services:
   credsaverbot:
     build:
       dockerfile: Dockerfile
-    depends_on:
-      - couchserver
     env_file: .env
     environment:
-      - DB_URL=http://couchserver:5984
+      DB_URL: http://couchserver:5984
