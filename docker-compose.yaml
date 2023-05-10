@@ -6,7 +6,7 @@ services:
     restart: always
     env_file: .env
     volumes:
-      - /Users/20084530/couchdb/data:/opt/couchdb/data
+      - /home/olegroom/couchdb/data:/opt/couchdb/data
     ports:
       - "5984:5984"
   credsaverbot:
