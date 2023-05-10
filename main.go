@@ -5,16 +5,19 @@ import (
 	"github.com/sirupsen/logrus"
 	"os"
 	"tg_bot/db"
+	"time"
 )
 
 const (
 	couchDBName = "users_creds"
-	databaseURL = "http://127.0.0.1:5984"
 )
 
 func main() {
 	//connection to couchDB
 	couch := &db.Couch{}
+	databaseURL := os.Getenv("DB_URL")
+	// hardcoded timeout for starting up couchdb. Not idiomatic
+	time.Sleep(time.Second * 5)
 	err := couch.InitConnection(databaseURL, os.Getenv("COUCHDB_USER"), os.Getenv("COUCHDB_PASSWORD"))
 	if err != nil {
 		logrus.WithError(err).Fatalf("cannot init connection with couch DMS on %s", databaseURL)
@@ -45,6 +48,8 @@ func main() {
 		}
 
 		switch upd.Message.Command() {
+		case "start":
+			_, _ = credStore.Bot.Send(tg.NewMessage(upd.Message.Chat.ID, "Hello. It's bot for saving your credentials for different services"))
 		case "get":
 			err = credStore.HandleGetCommand(chatID)
 			if err != nil {
@@ -60,6 +65,8 @@ func main() {
 			if err != nil {
 				logrus.WithError(err).Error("service not deleted")
 			}
+		case "help":
+			_, _ = credStore.Bot.Send(tg.NewMessage(upd.Message.Chat.ID, "Type /get command to retrieve data. Type /set command to set new or update data. Type /del to delete data"))
 		}
 	}
 }

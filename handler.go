@@ -24,7 +24,7 @@ var keyboardButtons = tg.NewReplyKeyboard(
 	),
 )
 
-var ValidCommands = []string{"get", "set", "del"}
+var ValidCommands = []string{"get", "set", "del", "start", "help"}
 
 // ValidateUpdate make some pre-handling errors check. In case bot expect the command, but it isn't...
 func (c *CredStore) ValidateUpdate(update tg.Update) error {

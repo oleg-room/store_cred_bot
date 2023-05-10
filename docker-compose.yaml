@@ -1,12 +1,19 @@
 version: '3'
+
 services:
   couchserver:
     image: couchdb
     restart: always
+    env_file: .env
+    volumes:
+      - /Users/20084530/couchdb/data:/opt/couchdb/data
     ports:
       - "5984:5984"
+  credsaverbot:
+    build:
+      dockerfile: Dockerfile
+    depends_on:
+      - couchserver
+    env_file: .env
     environment:
-      - COUCHDB_USER=bot
-      - COUCHDB_PASSWORD=bot
-    volumes:
-      - ./dbdata:/Users/20084530/couchdb/data
+      - DB_URL=http://couchserver:5984
