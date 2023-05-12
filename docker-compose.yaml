@@ -13,7 +13,8 @@ services:
       - "5984:5984"
   credsaverbot:
     build:
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./Dockerfile
     networks:
       - my-net
     env_file: .env
