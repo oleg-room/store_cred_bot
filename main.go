@@ -17,6 +17,7 @@ func main() {
 	couch := &db.Couch{}
 	databaseURL := os.Getenv("DB_URL")
 	// hardcoded timeout for starting up couchdb. Not idiomatic
+	logrus.Infof("Connection to %s", databaseURL)
 	time.Sleep(time.Second * 5)
 	err := couch.InitConnection(databaseURL, os.Getenv("COUCHDB_USER"), os.Getenv("COUCHDB_PASSWORD"))
 	if err != nil {

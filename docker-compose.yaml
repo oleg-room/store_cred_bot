@@ -3,6 +3,8 @@ version: '3'
 services:
   couchserver:
     image: couchdb
+    networks:
+      - my-net
     restart: always
     env_file: .env
     volumes:
@@ -12,6 +14,12 @@ services:
   credsaverbot:
     build:
       dockerfile: Dockerfile
+    networks:
+      - my-net
     env_file: .env
     environment:
       DB_URL: http://couchserver:5984
+
+networks:
+  my-net:
+    driver: bridge
